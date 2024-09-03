@@ -1,8 +1,14 @@
 pool:
   nodes:
-    - name: "node 1"
-      dsn: "postgres://postgres:password@localhost:5432"
-    - name: "node 2"
-      dsn: "postgres://postgres:password@localhost:5433"
-    - name: "node 3"
-      dsn: "postgres://postgres:password@localhost:5434"
+    - id: "node_1"
+      dsn: "postgres://postgres:readyset@localhost:5433/testdb"
+    - id: "node_2"
+      dsn: "postgres://postgres:readyset@localhost:5434/testdb"
+    - id: "node_3"
+      dsn: "postgres://postgres:readyset@localhost:5435/testdb"
+zookeeper:
+  - "localhost:2181"
+  - "localhost:2182"
+  - "localhost:2183"
+
+nodes_path: "/nodes"

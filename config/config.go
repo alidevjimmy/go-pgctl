@@ -9,10 +9,12 @@ import (
 type Config struct {
 	Pool struct {
 		Nodes []struct {
-			Name string `yaml:"name"`
-			DSN  string `yaml:"dsn"`
+			ID  string `yaml:"id"`
+			DSN string `yaml:"dsn"`
 		} `yaml:"nodes"`
 	} `yaml:"pool"`
+	Zookeeper []string `yaml:"zookeeper"`
+	NodesPath string   `yaml:"nodes_path"`
 }
 
 func New(path string) (*Config, error) {

@@ -1,0 +1,147 @@
+name: readyset-postgres
+services:
+  cache:
+    image: docker.io/readysettech/readyset:latest
+    platform: linux/amd64
+    ports:
+      - "5433:5433"
+      - "6034:6034"
+    environment:
+      DEPLOYMENT_ENV: quickstart_docker
+      DB_DIR: /state
+      PROMETHEUS_METRICS: true
+      QUERY_CACHING: explicit
+      QUERY_LOG_MODE: all-queries
+      STANDALONE: true
+      DEPLOYMENT: docker_compose_deployment
+      LISTEN_ADDRESS: 0.0.0.0:5433
+      UPSTREAM_DB_URL: postgresql://postgres:readyset@postgres/testdb
+      CONTROLLER_ADDRESS: 0.0.0.0
+    volumes:
+      - "readyset:/state"
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "127.0.0.1:6034/health" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=readyset
+      - POSTGRES_DB=testdb
+    expose:
+      - 5432
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres:/var/lib/postgresql/data
+  cache2:
+    image: docker.io/readysettech/readyset:latest
+    platform: linux/amd64
+    ports:
+      - "5434:5433"
+      - "6035:6034"
+    environment:
+      DEPLOYMENT_ENV: quickstart_docker2
+      DB_DIR: /state
+      PROMETHEUS_METRICS: true
+      QUERY_CACHING: explicit
+      QUERY_LOG_MODE: all-queries
+      STANDALONE: true
+      DEPLOYMENT: docker_compose_deployment
+      LISTEN_ADDRESS: 0.0.0.0:5433
+      UPSTREAM_DB_URL: postgresql://postgres:readyset@postgres2/testdb
+      CONTROLLER_ADDRESS: 0.0.0.0
+    volumes:
+      - "readyset2:/state"
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "127.0.0.1:6034/health" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres2:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=readyset
+      - POSTGRES_DB=testdb
+    expose:
+      - 5432
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres2:/var/lib/postgresql/data
+  cache3:
+    image: docker.io/readysettech/readyset:latest
+    platform: linux/amd64
+    ports:
+      - "5435:5433"
+      - "6036:6034"
+    environment:
+      DEPLOYMENT_ENV: quickstart_docker2
+      DB_DIR: /state
+      PROMETHEUS_METRICS: true
+      QUERY_CACHING: explicit
+      QUERY_LOG_MODE: all-queries
+      STANDALONE: true
+      DEPLOYMENT: docker_compose_deployment
+      LISTEN_ADDRESS: 0.0.0.0:5433
+      UPSTREAM_DB_URL: postgresql://postgres:readyset@postgres3/testdb
+      CONTROLLER_ADDRESS: 0.0.0.0
+    volumes:
+      - "readyset3:/state"
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "127.0.0.1:6034/health" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres3:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=readyset
+      - POSTGRES_DB=testdb
+    expose:
+      - 5432
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres3:/var/lib/postgresql/data
+volumes:
+  postgres:  
+  readyset: 
+  postgres2: 
+  readyset2:
+  postgres3:
+  readyset3:
