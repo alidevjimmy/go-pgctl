@@ -1,0 +1,8 @@
+pool:
+  nodes:
+    - name: "node 1"
+      dsn: "postgres://postgres:password@localhost:5432"
+    - name: "node 2"
+      dsn: "postgres://postgres:password@localhost:5433"
+    - name: "node 3"
+      dsn: "postgres://postgres:password@localhost:5434"
