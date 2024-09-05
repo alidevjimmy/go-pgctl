@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,63 +13,70 @@ import (
 	"github.com/alidevjimmy/readyset-replication/observer"
 	"github.com/alidevjimmy/readyset-replication/readyset"
 	"github.com/alidevjimmy/readyset-replication/zkconn"
+	"go.uber.org/zap"
 )
 
 var (
-	pool *node.Pool
-	zkc  *zkconn.ZKConnection
+	pool  *node.Pool
+	zkc   *zkconn.ZKConnection
+	sugar *zap.SugaredLogger
 )
 
 func main() {
+
+	// init logger
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+	sugar = logger.Sugar()
+
 	// get node from config file
 	cfg, err := config.New("./config/config.yaml")
 	if err != nil {
-		log.Panicf("failed to read config file: %v", err)
+		sugar.Fatalf("failed to read config file: %v", err)
 	}
 
 	// connect to nodes
 	nodes, err := initNodes(cfg)
 	if err != nil {
-		log.Printf("failed to connect to nodes: %v", err)
+		sugar.Errorf("failed to connect to nodes: %v", err)
 	}
-	log.Println("All nodes connected successfully")
 
-	pool = node.NewPool(nodes)
+	pool = node.NewPool(nodes, sugar)
 
 	// connect to zookeeper
 	zkc, err = zkconn.Connect(cfg.Zookeeper, 5*time.Second)
 	if err != nil {
-		log.Panicf("failed to connect to zookeeper: %v", err)
+		sugar.Fatalf("failed to connect to zookeeper: %v", err)
 	}
 	// elect one of nodes as leader
 	leaderIdx := election.Eelect(nodes)
 	pool.SetLeader(leaderIdx)
-	log.Printf("Node %s is the leader", nodes[leaderIdx].ID)
+	sugar.Infof("Node %s is the leader", nodes[leaderIdx].ID)
 
 	// add nodes to zookeeper
 	payload, err := json.Marshal(nodes)
 	if err != nil {
-		log.Panicf("failed to marshal nodes: %v", err)
+		sugar.Fatalf("failed to marshal nodes: %v", err)
 	}
 	path := cfg.NodesPath
 	exists, err := zkc.Exists(path)
 	if err != nil {
-		log.Panicf("failed to check if node exists: %v", err)
+		sugar.Fatalf("failed to check if node exists: %v", err)
 	}
 	if !exists {
 		if err := zkc.Create(path, payload); err != nil {
-			log.Panicf("failed to create node: %v", err)
+			sugar.Fatalf("failed to create node: %v", err)
 		}
 	} else {
 		if err := zkc.Set(path, payload); err != nil {
-			log.Panicf("failed to set node: %v", err)
+			sugar.Fatalf("failed to set node: %v", err)
 		}
 	}
-	log.Println("Nodes added to zookeeper")
+	sugar.Infof("Zookeeper is in-sync")
 
 	// run node observers for each node
 	for _, n := range nodes {
-		obs := observer.NewObserver(n, pool, zkc, 5*time.Second, cfg)
+		obs := observer.NewObserver(n, pool, zkc, 5*time.Second, cfg, sugar)
 		go obs.Start()
 	}
 
@@ -81,7 +87,7 @@ func main() {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-	log.Printf("Cought signal: %s, terminating...", <-sigChan)
+	sugar.Infof("Cought signal: %s, terminating...", <-sigChan)
 }
 
 func initNodes(cfg *config.Config) ([]*node.Node, error) {
@@ -89,9 +95,9 @@ func initNodes(cfg *config.Config) ([]*node.Node, error) {
 	for _, n := range cfg.Pool.Nodes {
 		rs, err := readyset.NewRS(n.DSN)
 		if err != nil {
+			sugar.Errorf("failed to connect to readyset: %v", err)
 			return nil, err
 		}
-		log.Printf("[INFO] Connected to node: %s", n.ID)
 		nodes = append(nodes, node.NewNode(rs.ConnPool, n.ID, n.DSN, n.InternalHost, n.InternalPort))
 	}
 	return nodes, nil

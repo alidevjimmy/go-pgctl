@@ -3,24 +3,27 @@ package node
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/alidevjimmy/readyset-replication/query"
 	"github.com/alidevjimmy/readyset-replication/util"
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 )
 
 type Pool struct {
-	Nodes []*Node
-	mu    sync.Mutex
+	Nodes  []*Node
+	logger *zap.SugaredLogger
+
+	mu sync.Mutex
 }
 
-func NewPool(nodes []*Node) *Pool {
+func NewPool(nodes []*Node, logger *zap.SugaredLogger) *Pool {
 	return &Pool{
-		Nodes: nodes,
-		mu:    sync.Mutex{},
+		Nodes:  nodes,
+		logger: logger,
+		mu:     sync.Mutex{},
 	}
 }
 
@@ -81,123 +84,134 @@ func (p *Pool) GetFollowers() []*Node {
 
 func (p *Pool) RunLeaderQueries() {
 	l := p.GetLeader()
-	p.dropAllSubscriptions(l)
-	p.dropReplicationSlots(l)
-	p.createPublication(l)
+	if err := p.dropAllSubscriptions(l); err != nil {
+		p.logger.Warnf("failed to drop subscriptions: %v", err)
+	}
+	if err := p.dropReplicationSlots(l); err != nil {
+		p.logger.Warnf("failed to drop replication slots: %v", err)
+	}
+	if err := p.createPublication(l); err != nil {
+		p.logger.Warnf("failed to create publication: %v", err)
+	}
 }
 
 func (p *Pool) RunFollowersQueries() {
 	followers := p.GetFollowers()
 	leader := p.GetLeader()
 	for _, f := range followers {
-		p.dropAllSubscriptions(f)
-		p.dropReplicationSlots(f)
-		p.createSubscription(f, leader)
+		if err := p.dropAllSubscriptions(f); err != nil {
+			p.logger.Warnf("failed to drop subscriptions: %v", err)
+		}
+		if err := p.dropReplicationSlots(f); err != nil {
+			p.logger.Warnf("failed to drop replication slots: %v", err)
+		}
+		if err := p.createSubscription(f, leader); err != nil {
+			p.logger.Warnf("failed to create subscription: %v", err)
+		}
 	}
 }
 
-func (p *Pool) createPublication(leader *Node) {
+func (p *Pool) createPublication(leader *Node) error {
 	conn, err := leader.ConnPool.Acquire(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] failed to acquire connection: %v", err)
+		return fmt.Errorf("failed to acquire connection: %v", err)
 	}
 	defer conn.Release()
 	_, err = conn.Exec(context.Background(), query.CreatePublicationQuery(leader.ID))
 	if err != nil {
-		log.Printf("[WARNING] failed to create publication: %v", err)
+		return fmt.Errorf("failed to create publication: %v", err)
 	}
-	log.Printf("[INFO] Publication created for node %s", leader.ID)
+	return nil
 }
 
-func (p *Pool) dropAllSubscriptions(n *Node) {
+func (p *Pool) dropAllSubscriptions(n *Node) error {
 	conn, err := n.ConnPool.Acquire(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] failed to acquire connection: %v", err)
+		return fmt.Errorf("failed to acquire connection: %v", err)
 	}
 	rows, err := conn.Query(context.Background(), "SELECT subname FROM pg_subscription;")
 	if err != nil {
-		log.Printf("Failed to retrieve subscriptions: %v\n", err)
+		return fmt.Errorf("failed to retrieve subscriptions: %v", err)
 	}
 	conn.Release()
 	defer rows.Close()
 	for rows.Next() {
 		conn, err := n.ConnPool.Acquire(context.Background())
 		if err != nil {
-			log.Printf("[ERROR] failed to acquire connection: %v", err)
+			p.logger.Errorf("failed to acquire connection: %v", err)
 		}
 		var subName string
 		if err := rows.Scan(&subName); err != nil {
-			log.Printf("Failed to scan subscription name: %v\n", err)
+			p.logger.Errorf("failed to scan subscription name: %v", err)
 		}
 		disableSubscriptionSQL := fmt.Sprintf("ALTER SUBSCRIPTION %s DISABLE;", pgx.Identifier{subName}.Sanitize())
 		_, err = conn.Exec(context.Background(), disableSubscriptionSQL)
 		if err != nil {
-			log.Printf("Failed to disable subscription %s: %v\n", subName, err)
+			p.logger.Errorf("failed to disable subscription %s: %v", subName, err)
 		}
 		noneSubscriptionSQL := fmt.Sprintf("ALTER SUBSCRIPTION %s SET (slot_name = NONE)", pgx.Identifier{subName}.Sanitize())
 		_, err = conn.Exec(context.Background(), noneSubscriptionSQL)
 		if err != nil {
-			log.Printf("Failed to set subscription %s slot_name to non: %v\n", subName, err)
+			p.logger.Errorf("failed to set subscription %s slot_name to non: %v", subName, err)
 		}
 		dropSubscriptionSQL := fmt.Sprintf("DROP SUBSCRIPTION %s", pgx.Identifier{subName}.Sanitize())
 		_, err = conn.Exec(context.Background(), dropSubscriptionSQL)
 		if err != nil {
-			log.Printf("Failed to drop subscription %s: %v\n", subName, err)
+			p.logger.Errorf("failed to drop subscription %s: %v", subName, err)
 		}
-
 		conn.Release()
-		fmt.Printf("Dropped subscription: %s\n", subName)
 	}
 	if rows.Err() != nil {
-		log.Printf("Error occurred during row iteration: %v\n", rows.Err())
+		return fmt.Errorf("error occurred during row iteration: %v", rows.Err())
 	}
+
+	return nil
 }
 
-func (p *Pool) dropReplicationSlots(n *Node) {
+func (p *Pool) dropReplicationSlots(n *Node) error {
 	conn, err := n.ConnPool.Acquire(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] failed to acquire connection: %v", err)
+		p.logger.Errorf("failed to acquire connection: %v", err)
 	}
 	rows, err := conn.Query(context.Background(), "SELECT slot_name FROM pg_replication_slots WHERE active = false;")
 	if err != nil {
-		log.Printf("Failed to retrieve slots: %v\n", err)
+		return fmt.Errorf("failed to retrieve slots: %v", err)
 	}
 	conn.Release()
 	defer rows.Close()
 	for rows.Next() {
 		conn, err := n.ConnPool.Acquire(context.Background())
 		if err != nil {
-			log.Printf("[ERROR] failed to acquire connection: %v", err)
+			p.logger.Errorf("failed to acquire connection: %v", err)
 		}
 		var subName string
 		if err := rows.Scan(&subName); err != nil {
-			log.Printf("Failed to scan slot name: %v\n", err)
+			p.logger.Errorf("failed to scan slot name: %v", err)
 		}
 		dropSlotSQL := fmt.Sprintf("SELECT pg_drop_replication_slot('%s');", subName)
 		_, err = conn.Exec(context.Background(), dropSlotSQL)
 		if err != nil {
-			log.Printf("Failed to drop slot %s: %v\n", subName, err)
+			p.logger.Errorf("failed to drop slot %s: %v", subName, err)
 		}
-		fmt.Printf("Dropped slot: %s\n", subName)
 	}
 	if rows.Err() != nil {
-		log.Printf("Error occurred during row iteration: %v\n", rows.Err())
+		return fmt.Errorf("error occurred during row iteration: %v", rows.Err())
 	}
 
-	log.Printf("All slots for %s dropped successfully!", n.ID)
+	return nil
 }
 
-func (p *Pool) createSubscription(follower, leader *Node) {
+func (p *Pool) createSubscription(follower, leader *Node) error {
 	conn, err := follower.ConnPool.Acquire(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] failed to acquire connection: %v", err)
+		return fmt.Errorf("failed to acquire connection: %v", err)
 	}
 	defer conn.Release()
 	subname := fmt.Sprintf("%s_%s_%d", follower.ID, leader.ID, time.Now().Nanosecond())
 	_, _, dbname, user, password := util.DSNParse(follower.DSN)
 	_, err = conn.Exec(context.Background(), query.CreateSubscriptionQuery(subname, leader.InternalHost, leader.InternalPort, dbname, user, password, leader.ID))
 	if err != nil {
-		log.Printf("[WARNING] failed to create subscription: %v", err)
+		return fmt.Errorf("failed to create subscription: %v", err)
 	}
-	log.Printf("[INFO] Subscription %s created for node %s", subname, follower.ID)
+	return nil
 }

@@ -2,7 +2,6 @@ package readyset
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,7 +21,6 @@ func NewRS(dsn string) (*RS, error) {
 	config.MinConns = 20
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		log.Printf("unable to connect to database: %v", err)
 		return nil, err
 	}
 	return &RS{ConnPool: pool}, nil

@@ -20,7 +20,7 @@ type Node struct {
 	DSN          string
 	InternalHost string
 	InternalPort string
-
+	
 	mu sync.Mutex
 }
 
