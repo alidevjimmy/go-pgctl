@@ -3,6 +3,7 @@ services:
   cache:
     image: docker.io/readysettech/readyset:latest
     platform: linux/amd64
+    restart: unless-stopped
     ports:
       - "5433:5433"
       - "6034:6034"
@@ -30,6 +31,7 @@ services:
         condition: service_healthy
   postgres:
     image: postgres:14
+    restart: unless-stopped
     environment:
       - POSTGRES_PASSWORD=readyset
       - POSTGRES_DB=testdb
@@ -48,6 +50,7 @@ services:
       - postgres:/var/lib/postgresql/data
   cache2:
     image: docker.io/readysettech/readyset:latest
+    restart: unless-stopped
     platform: linux/amd64
     ports:
       - "5434:5433"
@@ -76,6 +79,7 @@ services:
         condition: service_healthy
   postgres2:
     image: postgres:14
+    restart: unless-stopped
     environment:
       - POSTGRES_PASSWORD=readyset
       - POSTGRES_DB=testdb
@@ -94,6 +98,7 @@ services:
       - postgres2:/var/lib/postgresql/data
   cache3:
     image: docker.io/readysettech/readyset:latest
+    restart: unless-stopped
     platform: linux/amd64
     ports:
       - "5435:5433"
@@ -122,6 +127,7 @@ services:
         condition: service_healthy
   postgres3:
     image: postgres:14
+    restart: unless-stopped
     environment:
       - POSTGRES_PASSWORD=readyset
       - POSTGRES_DB=testdb

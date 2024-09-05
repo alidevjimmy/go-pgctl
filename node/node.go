@@ -3,7 +3,7 @@ package node
 import (
 	"sync"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Rule int
@@ -14,21 +14,25 @@ const (
 )
 
 type Node struct {
-	Conn *pgx.Conn
-	Rule Rule
-	ID   string
-	DSN  string
+	ConnPool     *pgxpool.Pool
+	Rule         Rule
+	ID           string
+	DSN          string
+	InternalHost string
+	InternalPort string
 
 	mu sync.Mutex
 }
 
-func NewNode(conn *pgx.Conn, id, dsn string) *Node {
+func NewNode(connPool *pgxpool.Pool, id, dsn, host, port string) *Node {
 	return &Node{
-		Conn: conn,
-		Rule: Follower,
-		DSN:  dsn,
-		ID:   id,
-		mu:   sync.Mutex{},
+		ConnPool: connPool,
+		Rule:     Follower,
+		DSN:      dsn,
+		ID:       id,
+		InternalHost: host,
+		InternalPort: port,
+		mu:       sync.Mutex{},
 	}
 }
 

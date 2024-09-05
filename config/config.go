@@ -9,8 +9,10 @@ import (
 type Config struct {
 	Pool struct {
 		Nodes []struct {
-			ID  string `yaml:"id"`
-			DSN string `yaml:"dsn"`
+			ID           string `yaml:"id"`
+			DSN          string `yaml:"dsn"`
+			InternalHost string `yaml:"internal_host"`
+			InternalPort string `yaml:"internal_port"`
 		} `yaml:"nodes"`
 	} `yaml:"pool"`
 	Zookeeper []string `yaml:"zookeeper"`

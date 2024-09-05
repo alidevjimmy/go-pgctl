@@ -52,10 +52,17 @@ func (o *Observer) Start() {
 }
 
 func (o *Observer) start() {
-	if err := o.node.Conn.Ping(context.Background()); err != nil {
+	conn, err := o.node.ConnPool.Acquire(context.Background())
+	if err != nil {
+		log.Printf("[ERROR] failed to acquire connection: %v", err)
+	}
+	defer conn.Release()
+	if err := conn.Ping(context.Background()); err != nil {
 		switch o.node.Rule {
 		case node.Leader:
 			o.electNewLeader()
+			o.pool.RunLeaderQueries()
+			o.pool.RunFollowersQueries()
 		case node.Follower:
 			o.wipeFollower()
 		}
@@ -93,5 +100,4 @@ func (o *Observer) wipeFollower() {
 func (o *Observer) Stop() {
 	log.Printf("observer for node %s stopped with err: %s", o.node.ID, o.ctx.Err())
 	o.ticker.Stop()
-	o.node.Conn.Close(context.Background())
 }

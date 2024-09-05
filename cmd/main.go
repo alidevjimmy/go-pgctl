@@ -12,7 +12,7 @@ import (
 	"github.com/alidevjimmy/readyset-replication/election"
 	"github.com/alidevjimmy/readyset-replication/node"
 	"github.com/alidevjimmy/readyset-replication/observer"
-	readyset "github.com/alidevjimmy/readyset-replication/readyset"
+	"github.com/alidevjimmy/readyset-replication/readyset"
 	"github.com/alidevjimmy/readyset-replication/zkconn"
 )
 
@@ -35,7 +35,7 @@ func main() {
 	}
 	log.Println("All nodes connected successfully")
 
-	pool := node.NewPool(nodes)
+	pool = node.NewPool(nodes)
 
 	// connect to zookeeper
 	zkc, err = zkconn.Connect(cfg.Zookeeper, 5*time.Second)
@@ -75,8 +75,9 @@ func main() {
 	}
 
 	// run leader commands on leader node
-
+	pool.RunLeaderQueries()
 	// run follower commands on follower node
+	pool.RunFollowersQueries()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
@@ -91,7 +92,7 @@ func initNodes(cfg *config.Config) ([]*node.Node, error) {
 			return nil, err
 		}
 		log.Printf("[INFO] Connected to node: %s", n.ID)
-		nodes = append(nodes, node.NewNode(rs.Conn, n.ID, n.DSN))
+		nodes = append(nodes, node.NewNode(rs.ConnPool, n.ID, n.DSN, n.InternalHost, n.InternalPort))
 	}
 	return nodes, nil
 }
