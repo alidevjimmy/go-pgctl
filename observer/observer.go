@@ -12,7 +12,7 @@ import (
 	"github.com/alidevjimmy/readyset-replication/zkconn"
 )
 
-// Observer pings nodes and takes action based on the node rule
+// Observer pings nodes and takes action based on the node Role
 type Observer struct {
 	node       *node.Node
 	pool       *node.Pool
@@ -58,7 +58,7 @@ func (o *Observer) start() {
 	}
 	defer conn.Release()
 	if err := conn.Ping(context.Background()); err != nil {
-		switch o.node.Rule {
+		switch o.node.Role {
 		case node.Leader:
 			o.electNewLeader()
 			o.pool.RunLeaderQueries()

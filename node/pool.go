@@ -56,7 +56,7 @@ func (p *Pool) GetLeader() *Node {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, n := range p.Nodes {
-		if n.Rule == Leader {
+		if n.Role == Leader {
 			return n
 		}
 	}
@@ -64,7 +64,7 @@ func (p *Pool) GetLeader() *Node {
 }
 
 func (p *Pool) SetLeader(idx int) {
-	p.Nodes[idx].ChangeRule(Leader)
+	p.Nodes[idx].ChangeRole(Leader)
 }
 
 func (p *Pool) GetFollowers() []*Node {
@@ -72,7 +72,7 @@ func (p *Pool) GetFollowers() []*Node {
 	defer p.mu.Unlock()
 	var followers []*Node
 	for _, n := range p.Nodes {
-		if n.Rule == Follower {
+		if n.Role == Follower {
 			followers = append(followers, n)
 		}
 	}

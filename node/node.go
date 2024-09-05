@@ -6,16 +6,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Rule int
+type Role int
 
 const (
-	Leader   Rule = 1
-	Follower Rule = 2
+	Leader   Role = 1
+	Follower Role = 2
 )
 
 type Node struct {
 	ConnPool     *pgxpool.Pool
-	Rule         Rule
+	Role         Role
 	ID           string
 	DSN          string
 	InternalHost string
@@ -26,18 +26,18 @@ type Node struct {
 
 func NewNode(connPool *pgxpool.Pool, id, dsn, host, port string) *Node {
 	return &Node{
-		ConnPool: connPool,
-		Rule:     Follower,
-		DSN:      dsn,
-		ID:       id,
+		ConnPool:     connPool,
+		Role:         Follower,
+		DSN:          dsn,
+		ID:           id,
 		InternalHost: host,
 		InternalPort: port,
-		mu:       sync.Mutex{},
+		mu:           sync.Mutex{},
 	}
 }
 
-func (n *Node) ChangeRule(newRule Rule) {
+func (n *Node) ChangeRole(newRole Role) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.Rule = newRule
+	n.Role = newRole
 }
